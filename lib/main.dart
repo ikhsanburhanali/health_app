@@ -374,7 +374,22 @@ class _BPPageState extends State<BPPage> {
   void calc() {
     int s = int.tryParse(sCtrl.text) ?? 0, d = int.tryParse(dCtrl.text) ?? 0;
     if (s > 0 && d > 0) {
-      setState(() { res = "$s/$d"; stat = (s <= 120 && d <= 80) ? "Normal" : "High Blood Pressure"; });
+      setState(() {
+        res = "$s/$d";
+        if (s > 180 || d > 120) {
+          stat = "Hypertensive Crisis";
+        } else if (s >= 140 || d >= 90) {
+          stat = "Stage 2 Hypertension";
+        } else if ((s >= 130 && s <= 139) || (d >= 80 && d <= 89)) {
+          stat = "Stage 1 Hypertension";
+        } else if ((s >= 120 && s <= 129) && d < 80) {
+          stat = "Elevated";
+        } else if (s < 120 && d < 80) {
+          stat = "Normal";
+        } else {
+          stat = "Unclassified";
+        }
+      });
     }
   }
   @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Blood Pressure")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
@@ -451,7 +466,7 @@ class HistoryPage extends StatelessWidget {
       final data = snap.data!;
       if (data.isEmpty) return const Center(child: Text("No records found."));
       return Column(children: [
-        Padding(padding: const EdgeInsets.all(10), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: ["BMI", "BP", "Glucose", "eGFR"].map((t) => Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: ElevatedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChartPage(type: t, data: data))), child: Text(t)))).toList()))),
+        Padding(padding: const EdgeInsets.all(10), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: ["BMI", "BP", "Glucose", "eGFR"].map((t) => Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: ElevatedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChartPage(type: t, data: data))), child: Text(t)))).toList()))),
         Expanded(child: ListView.builder(itemCount: data.length, itemBuilder: (c, i) {
           final item = data[data.length - 1 - i];
           return ListTile(title: Text("${item['type']}: ${item['val']}"), subtitle: Text("${item['status']}\n${item['date']} at ${item['timestamp']}"));
@@ -466,18 +481,212 @@ class HistoryPage extends StatelessWidget {
   }
 }
 
-class ChartPage extends StatelessWidget {
-  final String type; final List<Map<String, dynamic>> data;
+class ChartPage extends StatefulWidget {
+  final String type;
+  final List<Map<String, dynamic>> data;
   const ChartPage({super.key, required this.type, required this.data});
-  @override Widget build(BuildContext context) {
-    List<FlSpot> spots = [];
-    final filtered = data.where((e) => e['type'] == type).toList();
-    for (int i = 0; i < filtered.length; i++) {
-      double v = 0;
-      if (type == "BP") { v = double.tryParse(filtered[i]['val'].split('/')[0]) ?? 0; }
-      else { v = double.tryParse(filtered[i]['val']) ?? 0; }
-      spots.add(FlSpot(i.toDouble(), v));
+
+  @override
+  State<ChartPage> createState() => _ChartPageState();
+}
+
+class _ChartPageState extends State<ChartPage> {
+  bool isGlucoseFasting = true;
+
+  @override
+  Widget build(BuildContext context) {
+    List<Map<String, dynamic>> filtered = widget.data.where((e) => e['type'] == widget.type).toList();
+    
+    if (widget.type == "Glucose") {
+      filtered = filtered.where((e) => (e['status'] as String).contains(isGlucoseFasting ? "Fasting" : "Random")).toList();
     }
-    return Scaffold(appBar: AppBar(title: Text("$type Trend")), body: Padding(padding: const EdgeInsets.all(20), child: spots.isEmpty ? const Center(child: Text("Not enough data for chart")) : LineChart(LineChartData(lineBarsData: [LineChartBarData(spots: spots, isCurved: true, color: Colors.teal, barWidth: 4)]))));
+
+    if (filtered.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text("${widget.type} Trend")),
+        body: Column(
+          children: [
+            if (widget.type == "Glucose") _glucoseToggle(),
+            const Expanded(child: Center(child: Text("Not enough data"))),
+          ],
+        ),
+      );
+    }
+
+    List<FlSpot> mainSpots = [];
+    List<FlSpot> secondarySpots = [];
+
+    for (int i = 0; i < filtered.length; i++) {
+      if (widget.type == "BP") {
+        final parts = filtered[i]['val'].split('/');
+        mainSpots.add(FlSpot(i.toDouble(), double.tryParse(parts[0]) ?? 0));
+        if (parts.length > 1) {
+          secondarySpots.add(FlSpot(i.toDouble(), double.tryParse(parts[1]) ?? 0));
+        }
+      } else {
+        mainSpots.add(FlSpot(i.toDouble(), double.tryParse(filtered[i]['val']) ?? 0));
+      }
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text("${widget.type} Trend"), backgroundColor: Colors.white, foregroundColor: Colors.black87),
+      backgroundColor: Colors.white,
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Detailed statistics", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+                    const Text("Last entries analysis", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+                if (widget.type == "Glucose") _glucoseToggle(),
+              ],
+            ),
+            const SizedBox(height: 40),
+            Expanded(
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: true,
+                    horizontalInterval: 40,
+                    verticalInterval: 1,
+                    getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[200]!, strokeWidth: 1),
+                    getDrawingVerticalLine: (value) => FlLine(color: Colors.grey[200]!, strokeWidth: 1),
+                  ),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 30,
+                        getTitlesWidget: (value, meta) {
+                          int idx = value.toInt();
+                          if (idx >= 0 && idx < filtered.length) {
+                            String date = filtered[idx]['date']; // yyyy-MM-dd
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(date.substring(5), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                            );
+                          }
+                          return const Text("");
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    _createLineBarData(mainSpots, const Color(0xFF673AB7), const Color(0xFFE91E63)),
+                    if (secondarySpots.isNotEmpty)
+                      _createLineBarData(secondarySpots, Colors.orange, Colors.yellow),
+                  ],
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (touchedSpot) => Colors.blueGrey.withValues(alpha: 0.9),
+                      getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
+                        return touchedBarSpots.map((barSpot) {
+                          final flSpot = barSpot;
+                          final index = flSpot.x.toInt();
+                          final data = filtered[index];
+                          String label = widget.type == "BP" ? (barSpot.barIndex == 0 ? "Sys" : "Dia") : "Value";
+                          return LineTooltipItem(
+                            "$label: ${flSpot.y.toStringAsFixed(1)}\n${data['date']} ${data['timestamp']}",
+                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _indicator(widget.type == "BP" ? "Systolic" : widget.type, const Color(0xFF673AB7)),
+                if (widget.type == "BP") ...[
+                  const SizedBox(width: 20),
+                  _indicator("Diastolic", Colors.orange),
+                ]
+              ],
+            ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
   }
+
+  Widget _glucoseToggle() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _toggleBtn("Fasting", isGlucoseFasting, () => setState(() => isGlucoseFasting = true)),
+          _toggleBtn("Random", !isGlucoseFasting, () => setState(() => isGlucoseFasting = false)),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggleBtn(String text, bool active, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? Colors.teal : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(text, style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  LineChartBarData _createLineBarData(List<FlSpot> spots, Color color1, Color color2) {
+    return LineChartBarData(
+      spots: spots,
+      isCurved: true,
+      curveSmoothness: 0.35,
+      gradient: LinearGradient(colors: [color1, color2]),
+      barWidth: 3,
+      isStrokeCapRound: true,
+      dotData: FlDotData(
+        show: true,
+        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+          radius: 6,
+          color: Colors.white,
+          strokeWidth: 3,
+          strokeColor: color1,
+        ),
+      ),
+      belowBarData: BarAreaData(
+        show: true,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color1.withValues(alpha: 0.2), color1.withValues(alpha: 0.01)],
+        ),
+      ),
+    );
+  }
+
+  Widget _indicator(String label, Color color) => Row(children: [
+    Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+    const SizedBox(width: 6),
+    Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+  ]);
 }
