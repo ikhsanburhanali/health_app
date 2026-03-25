@@ -492,6 +492,7 @@ class ChartPage extends StatefulWidget {
 
 class _ChartPageState extends State<ChartPage> {
   bool isGlucoseFasting = true;
+  int? touchedIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -549,7 +550,10 @@ class _ChartPageState extends State<ChartPage> {
                 if (widget.type == "Glucose") _glucoseToggle(),
               ],
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 20),
+            // Persistent Info Card
+            if (touchedIndex != null && touchedIndex! < filtered.length) _buildInfoCard(filtered[touchedIndex!]),
+            const SizedBox(height: 20),
             Expanded(
               child: LineChart(
                 LineChartData(
@@ -558,8 +562,8 @@ class _ChartPageState extends State<ChartPage> {
                     drawVerticalLine: true,
                     horizontalInterval: 40,
                     verticalInterval: 1,
-                    getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[200]!, strokeWidth: 1),
-                    getDrawingVerticalLine: (value) => FlLine(color: Colors.grey[200]!, strokeWidth: 1),
+                    getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
+                    getDrawingVerticalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
                   ),
                   titlesData: FlTitlesData(
                     show: true,
@@ -573,7 +577,7 @@ class _ChartPageState extends State<ChartPage> {
                         getTitlesWidget: (value, meta) {
                           int idx = value.toInt();
                           if (idx >= 0 && idx < filtered.length) {
-                            String date = filtered[idx]['date']; // yyyy-MM-dd
+                            String date = filtered[idx]['date'];
                             return Padding(
                               padding: const EdgeInsets.only(top: 8.0),
                               child: Text(date.substring(5), style: const TextStyle(fontSize: 10, color: Colors.grey)),
@@ -591,20 +595,18 @@ class _ChartPageState extends State<ChartPage> {
                       _createLineBarData(secondarySpots, Colors.orange, Colors.yellow),
                   ],
                   lineTouchData: LineTouchData(
+                    touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
+                      if (!event.isInterestedForInteractions || touchResponse == null || touchResponse.lineBarSpots == null) {
+                        return;
+                      }
+                      setState(() {
+                        touchedIndex = touchResponse.lineBarSpots!.first.spotIndex;
+                      });
+                    },
+                    handleBuiltInTouches: true,
                     touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (touchedSpot) => Colors.blueGrey.withValues(alpha: 0.9),
-                      getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
-                        return touchedBarSpots.map((barSpot) {
-                          final flSpot = barSpot;
-                          final index = flSpot.x.toInt();
-                          final data = filtered[index];
-                          String label = widget.type == "BP" ? (barSpot.barIndex == 0 ? "Sys" : "Dia") : "Value";
-                          return LineTooltipItem(
-                            "$label: ${flSpot.y.toStringAsFixed(1)}\n${data['date']} ${data['timestamp']}",
-                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                          );
-                        }).toList();
-                      },
+                      getTooltipColor: (touchedSpot) => Colors.transparent, // Disable standard tooltip
+                      getTooltipItems: (List<LineBarSpot> touchedBarSpots) => touchedBarSpots.map((barSpot) => null).toList(),
                     ),
                   ),
                 ),
@@ -624,6 +626,33 @@ class _ChartPageState extends State<ChartPage> {
             const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(Map<String, dynamic> data) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.teal.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(data['type'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal)),
+              Text("${data['date']} | ${data['timestamp']}", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text("Value: ${data['val']}", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text("Status: ${data['status']}", style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+        ],
       ),
     );
   }
@@ -666,12 +695,15 @@ class _ChartPageState extends State<ChartPage> {
       isStrokeCapRound: true,
       dotData: FlDotData(
         show: true,
-        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-          radius: 6,
-          color: Colors.white,
-          strokeWidth: 3,
-          strokeColor: color1,
-        ),
+        getDotPainter: (spot, percent, barData, index) {
+          bool isTouched = touchedIndex == index;
+          return FlDotCirclePainter(
+            radius: isTouched ? 10 : 6,
+            color: isTouched ? color1 : Colors.white,
+            strokeWidth: 3,
+            strokeColor: color1,
+          );
+        },
       ),
       belowBarData: BarAreaData(
         show: true,
