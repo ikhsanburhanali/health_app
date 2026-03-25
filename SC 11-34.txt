@@ -1,0 +1,309 @@
+import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as p;
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'dart:async';
+import 'dart:math' as math;
+
+void main() {
+  runApp(HealthTrackerApp());
+}
+
+class HealthTrackerApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'HealthPro Tracker',
+      theme: ThemeData(
+        primarySwatch: Colors.teal,
+        scaffoldBackgroundColor: Color(0xFFF8FAFB),
+        appBarTheme: AppBarTheme(centerTitle: true, elevation: 0),
+      ),
+      debugShowCheckedModeBanner: false,
+      home: SplashScreen(),
+    );
+  }
+}
+
+// --- DATABASE HELPER ---
+class DatabaseHelper {
+  static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
+  DatabaseHelper._init();
+
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('health_pro_v3.db');
+    return _database!;
+  }
+
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = p.join(dbPath, filePath);
+    return await openDatabase(path, version: 1, onCreate: (db, v) async {
+      await db.execute('CREATE TABLE records(id INTEGER PRIMARY KEY, type TEXT, val TEXT, status TEXT, date TEXT)');
+      await db.execute('CREATE TABLE profile(id INTEGER PRIMARY KEY, age INTEGER, sex TEXT)');
+      // Insert default empty profile
+      await db.insert('profile', {'id': 1, 'age': 0, 'sex': 'Male'});
+    });
+  }
+
+  // Profile Methods
+  Future<Map<String, dynamic>> getProfile() async {
+    final db = await instance.database;
+    final res = await db.query('profile', where: 'id = ?', whereArgs: [1]);
+    return res.first;
+  }
+
+  Future<void> updateProfile(int age, String sex) async {
+    final db = await instance.database;
+    await db.update('profile', {'age': age, 'sex': sex}, where: 'id = ?', whereArgs: [1]);
+  }
+
+  // Record Methods
+  Future<void> saveRecord(String type, String val, String status) async {
+    final db = await instance.database;
+    await db.insert('records', {'type': type, 'val': val, 'status': status, 'date': DateTime.now().toIso8601String()});
+  }
+
+  Future<List<Map<String, dynamic>>> fetchRecords() async {
+    final db = await instance.database;
+    return await db.query('records', orderBy: 'date DESC');
+  }
+}
+
+// --- SPLASH SCREEN (5 SECONDS) ---
+class SplashScreen extends StatefulWidget {
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Timer(Duration(seconds: 5), () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreen())));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.teal.shade800, Colors.teal.shade400])),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.health_and_safety, size: 100, color: Colors.white),
+              SizedBox(height: 20),
+              Text("Your Health is Everything", style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+              SizedBox(height: 40),
+              CircularProgressIndicator(color: Colors.white),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- HOME SCREEN ---
+class HomeScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Health Dashboard"),
+        actions: [
+          IconButton(icon: Icon(Icons.person), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ProfilePage()))),
+        ],
+      ),
+      body: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15,
+                children: [
+                  _menuItem(context, "eGFR Calc", Icons.biotech, EGFRPage()),
+                  _menuItem(context, "BMI Index", Icons.accessibility_new, BMIPage()),
+                  _menuItem(context, "Blood Pressure", Icons.speed, BPPage()),
+                  _menuItem(context, "Blood Glucose", Icons.water_drop, GlucosePage()),
+                ],
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage())),
+              icon: Icon(Icons.history), label: Text("History & PDF Export"),
+              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 55)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _menuItem(BuildContext context, String title, IconData icon, Widget page) => InkWell(
+    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => page)),
+    child: Card(elevation: 4, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 40, color: Colors.teal), SizedBox(height: 8), Text(title)]),
+    ),
+  );
+}
+
+// --- PROFILE PAGE ---
+class ProfilePage extends StatefulWidget {
+  @override _ProfilePageState createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final ageCtrl = TextEditingController();
+  String selectedSex = "Male";
+
+  @override
+  void initState() {
+    super.initState();
+    DatabaseHelper.instance.getProfile().then((p) {
+      setState(() {
+        ageCtrl.text = p['age'] == 0 ? "" : p['age'].toString();
+        selectedSex = p['sex'];
+      });
+    });
+  }
+
+  void saveProfile() async {
+    int age = int.tryParse(ageCtrl.text) ?? 0;
+    await DatabaseHelper.instance.updateProfile(age, selectedSex);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Profile Updated!")));
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text("My Medical Profile")),
+      body: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          children: [
+            _input(ageCtrl, "Your Age"),
+            SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: selectedSex,
+              decoration: InputDecoration(labelText: "Sex", border: OutlineInputBorder()),
+              items: ["Male", "Female"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+              onChanged: (v) => setState(() => selectedSex = v!),
+            ),
+            SizedBox(height: 30),
+            _btn("Save Profile", saveProfile),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- EGFR PAGE ---
+class EGFRPage extends StatefulWidget {
+  @override _EGFRPageState createState() => _EGFRPageState();
+}
+
+class _EGFRPageState extends State<EGFRPage> {
+  final cCtrl = TextEditingController(), aCtrl = TextEditingController();
+  String res = "", status = "", userSex = "Male";
+
+  @override
+  void initState() {
+    super.initState();
+    DatabaseHelper.instance.getProfile().then((p) {
+      if (p['age'] > 0) setState(() { aCtrl.text = p['age'].toString(); userSex = p['sex']; });
+    });
+  }
+
+  void calc() {
+    double c = double.tryParse(cCtrl.text) ?? 0, a = double.tryParse(aCtrl.text) ?? 0;
+    if (c > 0 && a > 0) {
+      // MDRD Formula: 186 * (Creat / 88.4)^-1.154 * (Age)^-0.203 (* 0.742 if female)
+      double val = (186 * math.pow(c, -1.154) * math.pow(a, -0.203)).toDouble();
+      if (userSex == "Female") val *= 0.742;
+
+      setState(() {
+        res = val.toStringAsFixed(1);
+        status = (val >= 90) ? "Stage 1: Normal" : (val >= 60) ? "Stage 2: Mild Decrease" : (val >= 30) ? "Stage 3: Moderate Damage" : "Stage 4/5: Seek Medical Help";
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _calcLayout(context, "eGFR Calculator", [
+    _input(cCtrl, "Creatinine (mg/dL)"),
+    _input(aCtrl, "Age (Auto-filled from profile)"),
+    _btn("Calculate", calc),
+    if (res.isNotEmpty) _resultUI(context, "eGFR", double.parse(res), status, () => DatabaseHelper.instance.saveRecord("eGFR", res, status)),
+  ]);
+}
+
+// --- OTHER PAGES (BMI, BP, GLUCOSE) REMAIN THE SAME ---
+class BMIPage extends StatefulWidget {
+  @override _BMIPageState createState() => _BMIPageState();
+}
+class _BMIPageState extends State<BMIPage> {
+  final hCtrl = TextEditingController(), wCtrl = TextEditingController();
+  String res = "", status = "";
+  void calc() {
+    double h = double.tryParse(hCtrl.text) ?? 0, w = double.tryParse(wCtrl.text) ?? 0;
+    if (h > 0 && w > 0) {
+      double bmi = w / ((h / 100) * (h / 100));
+      setState(() { res = bmi.toStringAsFixed(1); status = (bmi < 18.5) ? "Underweight" : (bmi < 25) ? "Normal" : "Overweight"; });
+    }
+  }
+  @override Widget build(BuildContext context) => _calcLayout(context, "BMI Calculator", [_input(hCtrl, "Height (cm)"), _input(wCtrl, "Weight (kg)"), _btn("Calculate", calc), if (res.isNotEmpty) _resultUI(context, "BMI", double.parse(res), status, () => DatabaseHelper.instance.saveRecord("BMI", res, status))]);
+}
+
+class BPPage extends StatefulWidget {
+  @override _BPPageState createState() => _BPPageState();
+}
+class _BPPageState extends State<BPPage> {
+  final sCtrl = TextEditingController(), dCtrl = TextEditingController();
+  String res = "", status = "";
+  void calc() {
+    int s = int.tryParse(sCtrl.text) ?? 0, d = int.tryParse(dCtrl.text) ?? 0;
+    setState(() { res = "$s/$d"; status = (s <= 120 && d <= 80) ? "Normal" : "Review Required"; });
+  }
+  @override Widget build(BuildContext context) => _calcLayout(context, "Blood Pressure", [_input(sCtrl, "Systolic"), _input(dCtrl, "Diastolic"), _btn("Analyze", calc), if (res.isNotEmpty) _resultUI(context, "BP", 0, status, () => DatabaseHelper.instance.saveRecord("BP", res, status), displayVal: res)]);
+}
+
+class GlucosePage extends StatefulWidget {
+  @override _GlucosePageState createState() => _GlucosePageState();
+}
+class _GlucosePageState extends State<GlucosePage> {
+  final gCtrl = TextEditingController(); bool isF = true; String res = "", status = "";
+  void calc() {
+    double v = double.tryParse(gCtrl.text) ?? 0;
+    setState(() { res = v.toStringAsFixed(0); status = (v < 140) ? "Normal" : "High Risk"; });
+  }
+  @override Widget build(BuildContext context) => _calcLayout(context, "Blood Glucose", [SwitchListTile(title: Text("Fasting"), value: isF, onChanged: (v) => setState(() => isF = v)), _input(gCtrl, "Glucose"), _btn("Analyze", calc), if (res.isNotEmpty) _resultUI(context, "Glucose", double.parse(res), status, () => DatabaseHelper.instance.saveRecord("Glucose", res, status))]);
+}
+
+// --- HISTORY & COMMON WIDGETS ---
+class HistoryPage extends StatelessWidget {
+  Future<void> _exportPDF(List<Map<String, dynamic>> data) async {
+    final pdf = pw.Document();
+    pdf.addPage(pw.Page(build: (pw.Context context) => pw.Table.fromTextArray(data: <List<String>>[['Date', 'Type', 'Value', 'Status'], ...data.map((item) => [item['date'].split('T')[0], item['type'], item['val'], item['status']])])));
+    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+  }
+
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("History"), actions: [IconButton(icon: Icon(Icons.picture_as_pdf), onPressed: () async => _exportPDF(await DatabaseHelper.instance.fetchRecords()))]), body: FutureBuilder<List<Map<String, dynamic>>>(future: DatabaseHelper.instance.fetchRecords(), builder: (context, snap) {
+    if (!snap.hasData) return Center(child: CircularProgressIndicator());
+    return ListView.builder(itemCount: snap.data!.length, itemBuilder: (context, i) => ListTile(title: Text("${snap.data![i]['type']}: ${snap.data![i]['val']}"), subtitle: Text("${snap.data![i]['status']} • ${snap.data![i]['date'].split('T')[0]}")));
+  }));
+}
+
+Widget _calcLayout(BuildContext context, String t, List<Widget> c) => Scaffold(appBar: AppBar(title: Text(t)), body: SingleChildScrollView(padding: EdgeInsets.all(20), child: Column(children: c)));
+Widget _input(TextEditingController c, String l) => Padding(padding: EdgeInsets.only(bottom: 15), child: TextField(controller: c, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: l, border: OutlineInputBorder())));
+Widget _btn(String t, VoidCallback f) => ElevatedButton(onPressed: f, child: Text(t), style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50)));
+Widget _resultUI(BuildContext context, String type, double val, String stat, Function onSave, {String? displayVal}) => Column(children: [SizedBox(height: 20), Text(displayVal ?? val.toString(), style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.teal)), Text(stat), TextButton(onPressed: () {}, child: Text("What does this mean?")), ElevatedButton(onPressed: () => onSave(), child: Text("Save Result"))]);
