@@ -2,27 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:intl/intl.dart';
-import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
-void main() => runApp(HealthTrackerApp());
+void main() => runApp(const HealthTrackerApp());
 
 class HealthTrackerApp extends StatelessWidget {
+  const HealthTrackerApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'HealthApp',
       theme: ThemeData(
         primarySwatch: Colors.teal,
-        scaffoldBackgroundColor: Color(0xFFF8FAFB),
-        appBarTheme: AppBarTheme(centerTitle: true, elevation: 0),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFB),
+        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       ),
       debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
+      home: const SplashScreen(),
     );
   }
 }
@@ -68,72 +69,196 @@ class DatabaseHelper {
 
 // --- SPLASH SCREEN ---
 class SplashScreen extends StatefulWidget {
-  @override _SplashScreenState createState() => _SplashScreenState();
+  const SplashScreen({super.key});
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
 }
-class _SplashScreenState extends State<SplashScreen> {
+
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
   @override
   void initState() {
     super.initState();
-    Timer(Duration(seconds: 5), () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreen())));
+    _controller = AnimationController(duration: const Duration(seconds: 4), vsync: this)..repeat(reverse: true);
+    _animation = Tween<double>(begin: -1.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    
+    Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+      }
+    });
   }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: Container(
-      width: double.infinity,
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF00695C), Color(0xFF00897B)])),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          width: 160, height: 160,
-          decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-          child: ClipOval(child: Image.asset('assets/87820.jpg', fit: BoxFit.cover, errorBuilder: (c,e,s) => Icon(Icons.health_and_safety, size: 80, color: Colors.teal))),
-        ),
-        SizedBox(height: 30),
-        Text("HealthApp", style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
-        Text("Created with coffee by Ikhsan", style: TextStyle(color: Colors.white70, fontSize: 16, fontStyle: FontStyle.italic)),
-        SizedBox(height: 50),
-        CircularProgressIndicator(color: Colors.white),
-      ]),
+    body: AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF00695C), Color(0xFF00897B)],
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Far Background - Subtle floating shapes
+              _buildParallaxLayer(
+                offset: Offset(_animation.value * 30, _animation.value * 20),
+                child: Opacity(
+                  opacity: 0.05,
+                  child: Icon(Icons.health_and_safety, size: 400, color: Colors.white),
+                ),
+              ),
+              
+              // Mid Background - Moving circles
+              _buildParallaxLayer(
+                offset: Offset(-_animation.value * 50, _animation.value * 30),
+                child: Opacity(
+                  opacity: 0.1,
+                  child: Container(
+                    width: 250,
+                    height: 250,
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  ),
+                ),
+              ),
+
+              _buildParallaxLayer(
+                offset: Offset(_animation.value * 40, -_animation.value * 40),
+                child: Opacity(
+                  opacity: 0.08,
+                  child: Container(
+                    width: 150,
+                    height: 150,
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  ),
+                ),
+              ),
+
+              // Foreground Content
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center, 
+                children: [
+                  _buildParallaxLayer(
+                    offset: Offset(0, _animation.value * 10),
+                    child: Container(
+                      width: 160, height: 160,
+                      decoration: BoxDecoration(
+                        color: Colors.white, 
+                        shape: BoxShape.circle, 
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2), 
+                            blurRadius: 20, 
+                            spreadRadius: 5,
+                            offset: Offset(0, 10 + (_animation.value * 5))
+                          )
+                        ]
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/87820.jpg', 
+                          fit: BoxFit.cover, 
+                          errorBuilder: (c,e,s) => const Icon(Icons.health_and_safety, size: 80, color: Colors.teal)
+                        )
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  _buildParallaxLayer(
+                    offset: Offset(0, _animation.value * 5),
+                    child: Column(
+                      children: [
+                        Text(
+                          "HealthApp", 
+                          style: TextStyle(
+                            color: Colors.white, 
+                            fontSize: 36, 
+                            fontWeight: FontWeight.bold, 
+                            letterSpacing: 1.2,
+                            shadows: [Shadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))]
+                          )
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "Created with coffee by Ikhsan", 
+                          style: TextStyle(color: Colors.white70, fontSize: 16, fontStyle: FontStyle.italic)
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 60),
+                  const CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                ]
+              ),
+            ],
+          ),
+        );
+      },
     ),
   );
+
+  Widget _buildParallaxLayer({required Offset offset, required Widget child}) {
+    return Transform.translate(
+      offset: offset,
+      child: child,
+    );
+  }
 }
 
 // --- HOME SCREEN ---
 class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Health Dashboard"), actions: [
-        IconButton(icon: Icon(Icons.person), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ProfilePage())))
+      appBar: AppBar(title: const Text("Health Dashboard"), actions: [
+        IconButton(icon: const Icon(Icons.person), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())))
       ]),
       body: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(children: [
           Expanded(flex: 6, child: GridView.count(
             crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15,
             children: [
-              _menuItem(context, "eGFR Calc", "assets/egfr.jpg", EGFRPage()),
-              _menuItem(context, "BMI Index", "assets/bmi_index.jpg", BMIPage()),
-              _menuItem(context, "Blood Pressure", "assets/blood_pressure.jpg", BPPage()),
-              _menuItem(context, "Blood Glucose", "assets/blood_glucose.jpg", GlucosePage()),
+              _menuItem(context, "eGFR Calc", "assets/egfr.jpg", const EGFRPage()),
+              _menuItem(context, "BMI Index", "assets/bmi_index.jpg", const BMIPage()),
+              _menuItem(context, "Blood Pressure", "assets/blood_pressure.jpg", const BPPage()),
+              _menuItem(context, "Blood Glucose", "assets/blood_glucose.jpg", const GlucosePage()),
             ],
           )),
           ElevatedButton.icon(
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage())),
-            icon: Icon(Icons.history, color: Colors.white),
-            label: Text("History, Trends & PDF", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoryPage())),
+            icon: const Icon(Icons.history, color: Colors.white),
+            label: const Text("History, Trends & PDF", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
-                minimumSize: Size(double.infinity, 60),
+                minimumSize: const Size(double.infinity, 60),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
             ),
           ),
-          SizedBox(height: 80), // History button remains high
+          const SizedBox(height: 80),
         ]),
       ),
     );
   }
 
-  Widget _menuItem(context, title, path, page) => InkWell(
+  Widget _menuItem(BuildContext context, String title, String path, Widget page) => InkWell(
     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => page)),
     child: Card(
       clipBehavior: Clip.antiAlias,
@@ -141,37 +266,43 @@ class HomeScreen extends StatelessWidget {
       child: Column(children: [
         Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(12.0), // Smaller logo padding
+              padding: const EdgeInsets.all(12.0),
               child: Image.asset(
                   path,
                   fit: BoxFit.contain,
                   width: double.infinity,
-                  errorBuilder: (c,e,s) => Icon(Icons.image_not_supported, size: 40)
+                  errorBuilder: (c,e,s) => const Icon(Icons.image_not_supported, size: 40)
               ),
             )
         ),
-        Padding(padding: EdgeInsets.all(8), child: Text(title, style: TextStyle(fontWeight: FontWeight.bold))),
+        Padding(padding: const EdgeInsets.all(8), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
       ]),
     ),
   );
 }
 
 // --- PROFILE PAGE ---
-class ProfilePage extends StatefulWidget { @override _ProfilePageState createState() => _ProfilePageState(); }
+class ProfilePage extends StatefulWidget { 
+  const ProfilePage({super.key});
+  @override State<ProfilePage> createState() => _ProfilePageState(); 
+}
 class _ProfilePageState extends State<ProfilePage> {
   final aCtrl = TextEditingController(); String sex = "Male";
   @override void initState() { super.initState(); DatabaseHelper.instance.getProfile().then((p) => setState(() { aCtrl.text = p['age'] == 0 ? "" : p['age'].toString(); sex = p['sex']; })); }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("Profile")), body: Padding(padding: EdgeInsets.all(20), child: Column(children: [
-    TextField(controller: aCtrl, decoration: InputDecoration(labelText: "Age", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    SizedBox(height: 15),
-    DropdownButtonFormField<String>(value: sex, decoration: InputDecoration(border: OutlineInputBorder()), items: ["Male", "Female"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => setState(() => sex = v!)),
-    SizedBox(height: 30),
-    ElevatedButton(onPressed: () async { await DatabaseHelper.instance.updateProfile(int.tryParse(aCtrl.text) ?? 0, sex); Navigator.pop(context); }, child: Text("Save Profile"), style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50))),
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Profile")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+    TextField(controller: aCtrl, decoration: const InputDecoration(labelText: "Age", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+    const SizedBox(height: 15),
+    DropdownButtonFormField<String>(initialValue: sex, decoration: const InputDecoration(border: OutlineInputBorder()), items: ["Male", "Female"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => setState(() => sex = v!)),
+    const SizedBox(height: 30),
+    ElevatedButton(onPressed: () async { await DatabaseHelper.instance.updateProfile(int.tryParse(aCtrl.text) ?? 0, sex); if(mounted) Navigator.pop(context); }, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Save Profile")),
   ])));
 }
 
 // --- CALCULATORS ---
-class EGFRPage extends StatefulWidget { @override _EGFRPageState createState() => _EGFRPageState(); }
+class EGFRPage extends StatefulWidget { 
+  const EGFRPage({super.key});
+  @override State<EGFRPage> createState() => _EGFRPageState(); 
+}
 class _EGFRPageState extends State<EGFRPage> {
   final cCtrl = TextEditingController(), aCtrl = TextEditingController(); String res = "", stat = "", uSex = "Male";
   @override void initState() { super.initState(); DatabaseHelper.instance.getProfile().then((p) => setState(() { aCtrl.text = p['age'].toString(); uSex = p['sex']; })); }
@@ -183,26 +314,29 @@ class _EGFRPageState extends State<EGFRPage> {
       setState(() { res = val.toStringAsFixed(1); stat = val >= 60 ? "Normal/Mild" : "Kidney Damage Analysis Required"; });
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("eGFR")), body: Padding(padding: EdgeInsets.all(20), child: Column(children: [
-    TextField(controller: cCtrl, decoration: InputDecoration(labelText: "Creatinine (mg/dL)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    SizedBox(height: 15),
-    TextField(controller: aCtrl, decoration: InputDecoration(labelText: "Age", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    SizedBox(height: 20),
-    ElevatedButton(onPressed: calc, child: Text("Calculate"), style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50))),
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("eGFR")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+    TextField(controller: cCtrl, decoration: const InputDecoration(labelText: "Creatinine (mg/dL)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+    const SizedBox(height: 15),
+    TextField(controller: aCtrl, decoration: const InputDecoration(labelText: "Age", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+    const SizedBox(height: 20),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Calculate")),
     if (res.isNotEmpty) ...[
-      SizedBox(height: 20),
-      Text(res, style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
+      const SizedBox(height: 20),
+      Text(res, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
       Text(stat),
-      SizedBox(height: 10),
+      const SizedBox(height: 10),
       ElevatedButton(onPressed: () {
         DatabaseHelper.instance.saveRecord("eGFR", res, stat);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("eGFR Record Saved!")));
-      }, child: Text("Save Record"))
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("eGFR Record Saved!")));
+      }, child: const Text("Save Record"))
     ]
   ])));
 }
 
-class BMIPage extends StatefulWidget { @override _BMIPageState createState() => _BMIPageState(); }
+class BMIPage extends StatefulWidget { 
+  const BMIPage({super.key});
+  @override State<BMIPage> createState() => _BMIPageState(); 
+}
 class _BMIPageState extends State<BMIPage> {
   final hCtrl = TextEditingController(), wCtrl = TextEditingController(); String res = "", stat = "";
   void calc() {
@@ -212,26 +346,29 @@ class _BMIPageState extends State<BMIPage> {
       setState(() { res = val.toStringAsFixed(1); stat = val < 25 ? "Normal" : val < 30 ? "Overweight" : "Obese"; });
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("BMI")), body: Padding(padding: EdgeInsets.all(20), child: Column(children: [
-    TextField(controller: hCtrl, decoration: InputDecoration(labelText: "Height (cm)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    SizedBox(height: 15),
-    TextField(controller: wCtrl, decoration: InputDecoration(labelText: "Weight (kg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    SizedBox(height: 20),
-    ElevatedButton(onPressed: calc, child: Text("Calculate"), style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50))),
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("BMI")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+    TextField(controller: hCtrl, decoration: const InputDecoration(labelText: "Height (cm)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+    const SizedBox(height: 15),
+    TextField(controller: wCtrl, decoration: const InputDecoration(labelText: "Weight (kg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+    const SizedBox(height: 20),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Calculate")),
     if (res.isNotEmpty) ...[
-      SizedBox(height: 20),
-      Text(res, style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
+      const SizedBox(height: 20),
+      Text(res, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
       Text(stat),
-      SizedBox(height: 10),
+      const SizedBox(height: 10),
       ElevatedButton(onPressed: () {
         DatabaseHelper.instance.saveRecord("BMI", res, stat);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("BMI Record Saved!")));
-      }, child: Text("Save Record"))
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("BMI Record Saved!")));
+      }, child: const Text("Save Record"))
     ]
   ])));
 }
 
-class BPPage extends StatefulWidget { @override _BPPageState createState() => _BPPageState(); }
+class BPPage extends StatefulWidget { 
+  const BPPage({super.key});
+  @override State<BPPage> createState() => _BPPageState(); 
+}
 class _BPPageState extends State<BPPage> {
   final sCtrl = TextEditingController(), dCtrl = TextEditingController(); String res = "", stat = "";
   void calc() {
@@ -240,29 +377,32 @@ class _BPPageState extends State<BPPage> {
       setState(() { res = "$s/$d"; stat = (s <= 120 && d <= 80) ? "Normal" : "High Blood Pressure"; });
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("Blood Pressure")), body: Padding(padding: EdgeInsets.all(20), child: Column(children: [
-    TextField(controller: sCtrl, decoration: InputDecoration(labelText: "Systolic (mmHg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    SizedBox(height: 15),
-    TextField(controller: dCtrl, decoration: InputDecoration(labelText: "Diastolic (mmHg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    SizedBox(height: 20),
-    ElevatedButton(onPressed: calc, child: Text("Analyze"), style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50))),
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Blood Pressure")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+    TextField(controller: sCtrl, decoration: const InputDecoration(labelText: "Systolic (mmHg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+    const SizedBox(height: 15),
+    TextField(controller: dCtrl, decoration: const InputDecoration(labelText: "Diastolic (mmHg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+    const SizedBox(height: 20),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Analyze")),
     if (res.isNotEmpty) ...[
-      SizedBox(height: 20),
-      Text(res, style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
+      const SizedBox(height: 20),
+      Text(res, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
       Text(stat),
-      SizedBox(height: 10),
+      const SizedBox(height: 10),
       ElevatedButton(onPressed: () {
         DatabaseHelper.instance.saveRecord("BP", res, stat);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Blood Pressure Saved!")));
-      }, child: Text("Save Record"))
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Blood Pressure Saved!")));
+      }, child: const Text("Save Record"))
     ]
   ])));
 }
 
-class GlucosePage extends StatefulWidget { @override _GlucosePageState createState() => _GlucosePageState(); }
+class GlucosePage extends StatefulWidget { 
+  const GlucosePage({super.key});
+  @override State<GlucosePage> createState() => _GlucosePageState(); 
+}
 class _GlucosePageState extends State<GlucosePage> {
   final gCtrl = TextEditingController();
-  bool isFasting = true; // Restored Fasting Option
+  bool isFasting = true; 
   String res = "", stat = "";
 
   void calc() {
@@ -278,39 +418,40 @@ class _GlucosePageState extends State<GlucosePage> {
       });
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text("Blood Glucose")), body: Padding(padding: EdgeInsets.all(20), child: Column(children: [
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Blood Glucose")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
     SwitchListTile(
       title: Text(isFasting ? "Fasting" : "Random / After Meal"),
       value: isFasting,
       onChanged: (val) => setState(() => isFasting = val),
-      activeColor: Colors.teal,
+      activeThumbColor: Colors.teal,
     ),
-    TextField(controller: gCtrl, decoration: InputDecoration(labelText: "Glucose Level (mg/dL)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    SizedBox(height: 20),
-    ElevatedButton(onPressed: calc, child: Text("Analyze"), style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 50))),
+    TextField(controller: gCtrl, decoration: const InputDecoration(labelText: "Glucose Level (mg/dL)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+    const SizedBox(height: 20),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Analyze")),
     if (res.isNotEmpty) ...[
-      SizedBox(height: 20),
-      Text(res, style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
+      const SizedBox(height: 20),
+      Text(res, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
       Text(stat),
-      SizedBox(height: 10),
+      const SizedBox(height: 10),
       ElevatedButton(onPressed: () {
         DatabaseHelper.instance.saveRecord("Glucose", res, stat);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Glucose Record Saved!")));
-      }, child: Text("Save Record"))
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Glucose Record Saved!")));
+      }, child: const Text("Save Record"))
     ]
   ])));
 }
 
 // --- HISTORY & TRENDS ---
 class HistoryPage extends StatelessWidget {
+  const HistoryPage({super.key});
   @override Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text("History"), actions: [IconButton(icon: Icon(Icons.picture_as_pdf), onPressed: () async => _pdf(await DatabaseHelper.instance.fetchRecords()))]),
+    appBar: AppBar(title: const Text("History"), actions: [IconButton(icon: const Icon(Icons.picture_as_pdf), onPressed: () async => _pdf(await DatabaseHelper.instance.fetchRecords()))]),
     body: FutureBuilder<List<Map<String, dynamic>>>(future: DatabaseHelper.instance.fetchRecords(), builder: (c, snap) {
-      if (!snap.hasData) return Center(child: CircularProgressIndicator());
+      if (!snap.hasData) return const Center(child: CircularProgressIndicator());
       final data = snap.data!;
-      if (data.isEmpty) return Center(child: Text("No records found."));
+      if (data.isEmpty) return const Center(child: Text("No records found."));
       return Column(children: [
-        Padding(padding: EdgeInsets.all(10), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: ["BMI", "BP", "Glucose", "eGFR"].map((t) => Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: ElevatedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChartPage(type: t, data: data))), child: Text(t)))).toList()))),
+        Padding(padding: const EdgeInsets.all(10), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: ["BMI", "BP", "Glucose", "eGFR"].map((t) => Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: ElevatedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChartPage(type: t, data: data))), child: Text(t)))).toList()))),
         Expanded(child: ListView.builder(itemCount: data.length, itemBuilder: (c, i) {
           final item = data[data.length - 1 - i];
           return ListTile(title: Text("${item['type']}: ${item['val']}"), subtitle: Text("${item['status']}\n${item['date']} at ${item['timestamp']}"));
@@ -318,15 +459,16 @@ class HistoryPage extends StatelessWidget {
       ]);
     }),
   );
-  void _pdf(data) async {
-    final doc = pw.Document(); doc.addPage(pw.Page(build: (c) => pw.Table.fromTextArray(data: [['Date', 'Time', 'Type', 'Value', 'Status'], ...data.map((e) => [e['date'], e['timestamp'] ?? '', e['type'], e['val'], e['status']])])));
+  void _pdf(List<Map<String, dynamic>> data) async {
+    final doc = pw.Document(); 
+    doc.addPage(pw.Page(build: (c) => pw.TableHelper.fromTextArray(data: [['Date', 'Time', 'Type', 'Value', 'Status'], ...data.map((e) => [e['date'], e['timestamp'] ?? '', e['type'], e['val'], e['status']])])));
     await Printing.layoutPdf(onLayout: (f) async => doc.save());
   }
 }
 
 class ChartPage extends StatelessWidget {
   final String type; final List<Map<String, dynamic>> data;
-  ChartPage({required this.type, required this.data});
+  const ChartPage({super.key, required this.type, required this.data});
   @override Widget build(BuildContext context) {
     List<FlSpot> spots = [];
     final filtered = data.where((e) => e['type'] == type).toList();
@@ -336,6 +478,6 @@ class ChartPage extends StatelessWidget {
       else { v = double.tryParse(filtered[i]['val']) ?? 0; }
       spots.add(FlSpot(i.toDouble(), v));
     }
-    return Scaffold(appBar: AppBar(title: Text("$type Trend")), body: Padding(padding: EdgeInsets.all(20), child: spots.isEmpty ? Center(child: Text("Not enough data for chart")) : LineChart(LineChartData(lineBarsData: [LineChartBarData(spots: spots, isCurved: true, color: Colors.teal, barWidth: 4)]))));
+    return Scaffold(appBar: AppBar(title: Text("$type Trend")), body: Padding(padding: const EdgeInsets.all(20), child: spots.isEmpty ? const Center(child: Text("Not enough data for chart")) : LineChart(LineChartData(lineBarsData: [LineChartBarData(spots: spots, isCurved: true, color: Colors.teal, barWidth: 4)]))));
   }
 }
