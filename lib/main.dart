@@ -268,10 +268,11 @@ class HomeScreen extends StatelessWidget {
           Expanded(flex: 6, child: GridView.count(
             crossAxisCount: 2, crossAxisSpacing: 20, mainAxisSpacing: 20,
             children: [
-              _menuItem(context, "eGFR Calc", "assets/egfr.jpg", Icons.analytics_outlined, const EGFRPage()),
-              _menuItem(context, "BMI Index", "assets/bmi_index.jpg", Icons.monitor_weight_outlined, const BMIPage()),
-              _menuItem(context, "Blood Pressure", "assets/blood_pressure.jpg", Icons.bloodtype_outlined, const BPPage()),
-              _menuItem(context, "Blood Glucose", "assets/blood_glucose.jpg", Icons.biotech_outlined, const GlucosePage()),
+              _menuItem(context, "eGFR Calc", Icons.analytics_outlined, const EGFRPage()),
+              _menuItem(context, "BMI Index", Icons.monitor_weight_outlined, const BMIPage()),
+              _menuItem(context, "Blood Pressure", Icons.bloodtype_outlined, const BPPage()),
+              _menuItem(context, "Blood Glucose", Icons.biotech_outlined, const GlucosePage()),
+              _menuItem(context, "Cholesterol", Icons.science_outlined, const CholesterolPage()),
             ],
           )),
           const SizedBox(height: 20),
@@ -290,7 +291,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _menuItem(BuildContext context, String title, String path, IconData icon, Widget page) => InkWell(
+  Widget _menuItem(BuildContext context, String title, IconData icon, Widget page) => InkWell(
     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => page)),
     child: Container(
       decoration: BoxDecoration(
@@ -508,6 +509,55 @@ class _GlucosePageState extends State<GlucosePage> {
   );
 }
 
+class CholesterolPage extends StatefulWidget {
+  const CholesterolPage({super.key});
+  @override State<CholesterolPage> createState() => _CholesterolPageState();
+}
+class _CholesterolPageState extends State<CholesterolPage> {
+  final tcCtrl = TextEditingController(), ldlCtrl = TextEditingController(), hdlCtrl = TextEditingController(), tgCtrl = TextEditingController();
+  String res = "", stat = "";
+
+  void calc() {
+    double tc = double.tryParse(tcCtrl.text) ?? 0, ldl = double.tryParse(ldlCtrl.text) ?? 0, hdl = double.tryParse(hdlCtrl.text) ?? 0, tg = double.tryParse(tgCtrl.text) ?? 0;
+    if (tc > 0) {
+      setState(() {
+        res = "TC: ${tc.toInt()}";
+        List<String> stats = [];
+        if (tc >= 200) stats.add("High Total Cholesterol");
+        if (ldl >= 130) stats.add("High LDL");
+        if (hdl < 40) stats.add("Low HDL");
+        if (tg >= 150) stats.add("High Triglycerides");
+        stat = stats.isEmpty ? "Normal Lipid Profile" : stats.join(", ");
+      });
+    }
+  }
+
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Cholesterol")), body: SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [
+    TextField(controller: tcCtrl, decoration: const InputDecoration(labelText: "Total Cholesterol (mg/dL)"), keyboardType: TextInputType.number),
+    const SizedBox(height: 10),
+    TextField(controller: ldlCtrl, decoration: const InputDecoration(labelText: "LDL (Bad) (mg/dL)"), keyboardType: TextInputType.number),
+    const SizedBox(height: 10),
+    TextField(controller: hdlCtrl, decoration: const InputDecoration(labelText: "HDL (Good) (mg/dL)"), keyboardType: TextInputType.number),
+    const SizedBox(height: 10),
+    TextField(controller: tgCtrl, decoration: const InputDecoration(labelText: "Triglycerides (mg/dL)"), keyboardType: TextInputType.number),
+    const SizedBox(height: 30),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55)), child: const Text("Analyze")),
+    if (res.isNotEmpty) _resultCard(res, stat, "Cholesterol")
+  ])));
+
+  Widget _resultCard(String r, String s, String type) => Container(
+    margin: const EdgeInsets.only(top: 30),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+    child: Column(children: [
+      Text(r, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.teal)),
+      Text(s, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+      const SizedBox(height: 20),
+      ElevatedButton(onPressed: () { DatabaseHelper.instance.saveRecord(type, r, s); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record Saved!"))); }, child: const Text("Save Record"))
+    ]),
+  );
+}
+
 // --- HISTORY & TRENDS ---
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
@@ -518,7 +568,7 @@ class HistoryPage extends StatelessWidget {
       final data = snap.data!;
       if (data.isEmpty) return const Center(child: Text("No records found."));
       return Column(children: [
-        Padding(padding: const EdgeInsets.all(15), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: ["BMI", "BP", "Glucose", "eGFR"].map((t) => Padding(padding: EdgeInsets.symmetric(horizontal: 5), child: ActionChip(label: Text(t), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChartPage(type: t, data: data)))) )).toList()))),
+        Padding(padding: const EdgeInsets.all(15), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: ["BMI", "BP", "Glucose", "eGFR", "Cholesterol"].map((t) => Padding(padding: EdgeInsets.symmetric(horizontal: 5), child: ActionChip(label: Text(t), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChartPage(type: t, data: data)))) )).toList()))),
         Expanded(child: ListView.builder(itemCount: data.length, itemBuilder: (c, i) {
           final item = data[data.length - 1 - i];
           return Card(
@@ -541,6 +591,7 @@ class HistoryPage extends StatelessWidget {
       case "BMI": return Icons.monitor_weight_outlined;
       case "BP": return Icons.bloodtype_outlined;
       case "Glucose": return Icons.biotech_outlined;
+      case "Cholesterol": return Icons.science_outlined;
       default: return Icons.analytics_outlined;
     }
   }
@@ -567,137 +618,147 @@ class _ChartPageState extends State<ChartPage> {
 
   @override
   Widget build(BuildContext context) {
-    List<Map<String, dynamic>> filtered = widget.data.where((e) => e['type'] == widget.type).toList();
-    
-    if (widget.type == "Glucose") {
-      filtered = filtered.where((e) => (e['status'] as String).contains(isGlucoseFasting ? "Fasting" : "Random")).toList();
-    }
-
-    if (filtered.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: Text("${widget.type} Trend")),
-        body: Column(
-          children: [
-            if (widget.type == "Glucose") _glucoseToggle(),
-            const Expanded(child: Center(child: Text("Not enough data"))),
-          ],
-        ),
-      );
-    }
-
-    List<FlSpot> mainSpots = [];
-    List<FlSpot> secondarySpots = [];
-
-    for (int i = 0; i < filtered.length; i++) {
-      if (widget.type == "BP") {
-        final parts = filtered[i]['val'].split('/');
-        mainSpots.add(FlSpot(i.toDouble(), double.tryParse(parts[0]) ?? 0));
-        if (parts.length > 1) {
-          secondarySpots.add(FlSpot(i.toDouble(), double.tryParse(parts[1]) ?? 0));
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: DatabaseHelper.instance.fetchRecords(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        
+        final freshData = snapshot.data!;
+        List<Map<String, dynamic>> filtered = freshData.where((e) => e['type'] == widget.type).toList();
+        
+        if (widget.type == "Glucose") {
+          filtered = filtered.where((e) => (e['status'] as String).contains(isGlucoseFasting ? "Fasting" : "Random")).toList();
         }
-      } else {
-        mainSpots.add(FlSpot(i.toDouble(), double.tryParse(filtered[i]['val']) ?? 0));
-      }
-    }
 
-    return Scaffold(
-      appBar: AppBar(title: Text("${widget.type} Trend"), backgroundColor: Colors.white, foregroundColor: Colors.black87),
-      backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        if (filtered.isEmpty) {
+          return Scaffold(
+            appBar: AppBar(title: Text("${widget.type} Trend")),
+            body: Column(
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Detailed statistics", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800])),
-                    const Text("Last entries analysis", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
                 if (widget.type == "Glucose") _glucoseToggle(),
+                const Expanded(child: Center(child: Text("Not enough data"))),
               ],
             ),
-            const SizedBox(height: 20),
-            // Persistent Info Card
-            if (touchedIndex != null && touchedIndex! < filtered.length) _buildInfoCard(filtered[touchedIndex!]),
-            const SizedBox(height: 20),
-            Expanded(
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: true,
-                    horizontalInterval: 40,
-                    verticalInterval: 1,
-                    getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
-                    getDrawingVerticalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
-                  ),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 30,
-                        getTitlesWidget: (value, meta) {
-                          int idx = value.toInt();
-                          if (idx >= 0 && idx < filtered.length) {
-                            String date = filtered[idx]['date'];
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(date.substring(5), style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                            );
+          );
+        }
+
+        List<FlSpot> mainSpots = [];
+        List<FlSpot> secondarySpots = [];
+
+        for (int i = 0; i < filtered.length; i++) {
+          if (widget.type == "BP") {
+            final parts = filtered[i]['val'].split('/');
+            mainSpots.add(FlSpot(i.toDouble(), double.tryParse(parts[0]) ?? 0));
+            if (parts.length > 1) {
+              secondarySpots.add(FlSpot(i.toDouble(), double.tryParse(parts[1]) ?? 0));
+            }
+          } else if (widget.type == "Cholesterol") {
+            final val = double.tryParse(filtered[i]['val'].replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+            mainSpots.add(FlSpot(i.toDouble(), val));
+          } else {
+            mainSpots.add(FlSpot(i.toDouble(), double.tryParse(filtered[i]['val']) ?? 0));
+          }
+        }
+
+        return Scaffold(
+          appBar: AppBar(title: Text("${widget.type} Trend"), backgroundColor: Colors.white, foregroundColor: Colors.black87),
+          backgroundColor: Colors.white,
+          body: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Detailed statistics", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+                        const Text("Last entries analysis", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                    if (widget.type == "Glucose") _glucoseToggle(),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (touchedIndex != null && touchedIndex! < filtered.length) _buildInfoCard(filtered[touchedIndex!]),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: LineChart(
+                    LineChartData(
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: true,
+                        horizontalInterval: 40,
+                        verticalInterval: 1,
+                        getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
+                        getDrawingVerticalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
+                      ),
+                      titlesData: FlTitlesData(
+                        show: true,
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 30,
+                            getTitlesWidget: (value, meta) {
+                              int idx = value.toInt();
+                              if (idx >= 0 && idx < filtered.length) {
+                                String date = filtered[idx]['date'];
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(date.substring(5), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                );
+                              }
+                              return const Text("");
+                            },
+                          ),
+                        ),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      lineBarsData: [
+                        _createLineBarData(mainSpots, const Color(0xFF673AB7), const Color(0xFFE91E63)),
+                        if (secondarySpots.isNotEmpty)
+                          _createLineBarData(secondarySpots, Colors.orange, Colors.yellow),
+                      ],
+                      lineTouchData: LineTouchData(
+                        touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
+                          if (!event.isInterestedForInteractions || touchResponse == null || touchResponse.lineBarSpots == null) {
+                            return;
                           }
-                          return const Text("");
+                          setState(() {
+                            touchedIndex = touchResponse.lineBarSpots!.first.spotIndex;
+                          });
                         },
+                        handleBuiltInTouches: true,
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipColor: (touchedSpot) => Colors.transparent,
+                          getTooltipItems: (List<LineBarSpot> touchedBarSpots) => touchedBarSpots.map((barSpot) => null).toList(),
+                        ),
                       ),
                     ),
                   ),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    _createLineBarData(mainSpots, const Color(0xFF673AB7), const Color(0xFFE91E63)),
-                    if (secondarySpots.isNotEmpty)
-                      _createLineBarData(secondarySpots, Colors.orange, Colors.yellow),
-                  ],
-                  lineTouchData: LineTouchData(
-                    touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
-                      if (!event.isInterestedForInteractions || touchResponse == null || touchResponse.lineBarSpots == null) {
-                        return;
-                      }
-                      setState(() {
-                        touchedIndex = touchResponse.lineBarSpots!.first.spotIndex;
-                      });
-                    },
-                    handleBuiltInTouches: true,
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (touchedSpot) => Colors.transparent, // Disable standard tooltip
-                      getTooltipItems: (List<LineBarSpot> touchedBarSpots) => touchedBarSpots.map((barSpot) => null).toList(),
-                    ),
-                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _indicator(widget.type == "BP" ? "Systolic" : widget.type, const Color(0xFF673AB7)),
-                if (widget.type == "BP") ...[
-                  const SizedBox(width: 20),
-                  _indicator("Diastolic", Colors.orange),
-                ]
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _indicator(widget.type == "BP" ? "Systolic" : (widget.type == "Cholesterol" ? "Total Chol." : widget.type), const Color(0xFF673AB7)),
+                    if (widget.type == "BP") ...[
+                      const SizedBox(width: 20),
+                      _indicator("Diastolic", Colors.orange),
+                    ]
+                  ],
+                ),
+                const SizedBox(height: 40),
               ],
             ),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
+          ),
+        );
+      }
     );
   }
 
