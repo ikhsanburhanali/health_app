@@ -21,6 +21,18 @@ class HealthTrackerApp extends StatelessWidget {
         primarySwatch: Colors.teal,
         scaffoldBackgroundColor: const Color(0xFFF8FAFB),
         appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.white,
+        ),
       ),
       debugShowCheckedModeBanner: false,
       home: const SplashScreen(),
@@ -76,17 +88,31 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _animation;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _rotationAnimation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(duration: const Duration(seconds: 4), vsync: this)..repeat(reverse: true);
-    _animation = Tween<double>(begin: -1.0, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _controller = AnimationController(duration: const Duration(seconds: 3), vsync: this)..forward();
     
-    Timer(const Duration(seconds: 5), () {
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.1).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 1.0, curve: Curves.elasticOut)),
+    );
+    
+    _rotationAnimation = Tween<double>(begin: 0, end: 0.05).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 1.0, curve: Curves.easeInOut)),
+    );
+    
+    Timer(const Duration(seconds: 3), () {
       if (mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+        Navigator.pushReplacement(context, PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 800),
+        ));
       }
     });
   }
@@ -100,7 +126,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) => Scaffold(
     body: AnimatedBuilder(
-      animation: _animation,
+      animation: _controller,
       builder: (context, child) {
         return Container(
           width: double.infinity,
@@ -109,100 +135,86 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF00695C), Color(0xFF00897B)],
+              colors: [Color(0xFF004D40), Color(0xFF00897B), Color(0xFF4DB6AC)],
             ),
           ),
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Far Background - Subtle floating shapes
-              _buildParallaxLayer(
-                offset: Offset(_animation.value * 30, _animation.value * 20),
-                child: Opacity(
-                  opacity: 0.05,
-                  child: Icon(Icons.health_and_safety, size: 400, color: Colors.white),
-                ),
-              ),
+              // Enhanced Parallax Particles
+              for (int i = 0; i < 15; i++)
+                _buildParticle(i),
               
-              // Mid Background - Moving circles
-              _buildParallaxLayer(
-                offset: Offset(-_animation.value * 50, _animation.value * 30),
-                child: Opacity(
-                  opacity: 0.1,
-                  child: Container(
-                    width: 250,
-                    height: 250,
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  ),
-                ),
-              ),
-
-              _buildParallaxLayer(
-                offset: Offset(_animation.value * 40, -_animation.value * 40),
-                child: Opacity(
-                  opacity: 0.08,
-                  child: Container(
-                    width: 150,
-                    height: 150,
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                  ),
-                ),
-              ),
-
-              // Foreground Content
               Column(
                 mainAxisAlignment: MainAxisAlignment.center, 
                 children: [
-                  _buildParallaxLayer(
-                    offset: Offset(0, _animation.value * 10),
-                    child: Container(
-                      width: 160, height: 160,
-                      decoration: BoxDecoration(
-                        color: Colors.white, 
-                        shape: BoxShape.circle, 
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2), 
-                            blurRadius: 20, 
-                            spreadRadius: 5,
-                            offset: Offset(0, 10 + (_animation.value * 5))
+                  Transform.rotate(
+                    angle: _rotationAnimation.value,
+                    child: ScaleTransition(
+                      scale: _scaleAnimation,
+                      child: Container(
+                        width: 160, height: 160,
+                        decoration: BoxDecoration(
+                          color: Colors.white, 
+                          shape: BoxShape.circle, 
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2), 
+                              blurRadius: 30, 
+                              spreadRadius: 5,
+                              offset: const Offset(0, 15)
+                            )
+                          ]
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/87820.jpg', 
+                            fit: BoxFit.cover, 
+                            errorBuilder: (c,e,s) => const Icon(Icons.health_and_safety, size: 80, color: Colors.teal)
                           )
-                        ]
-                      ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/87820.jpg', 
-                          fit: BoxFit.cover, 
-                          errorBuilder: (c,e,s) => const Icon(Icons.health_and_safety, size: 80, color: Colors.teal)
-                        )
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 40),
-                  _buildParallaxLayer(
-                    offset: Offset(0, _animation.value * 5),
+                  const SizedBox(height: 50),
+                  FadeTransition(
+                    opacity: _controller,
                     child: Column(
                       children: [
-                        Text(
+                        const Text(
                           "HealthApp", 
                           style: TextStyle(
                             color: Colors.white, 
-                            fontSize: 36, 
+                            fontSize: 42, 
                             fontWeight: FontWeight.bold, 
-                            letterSpacing: 1.2,
-                            shadows: [Shadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))]
+                            letterSpacing: 2,
+                            shadows: [Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))]
                           )
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          "Created with coffee by Ikhsan", 
-                          style: TextStyle(color: Colors.white70, fontSize: 16, fontStyle: FontStyle.italic)
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            "Created with coffee by Ikhsan", 
+                            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w300)
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 60),
-                  const CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                  const SizedBox(height: 70),
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: CircularProgressIndicator(
+                      color: Colors.white.withValues(alpha: 0.8), 
+                      strokeWidth: 2,
+                    ),
+                  ),
                 ]
               ),
             ],
@@ -212,10 +224,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     ),
   );
 
-  Widget _buildParallaxLayer({required Offset offset, required Widget child}) {
-    return Transform.translate(
-      offset: offset,
-      child: child,
+  Widget _buildParticle(int index) {
+    final random = math.Random(index);
+    final size = random.nextDouble() * 100 + 50;
+    final top = random.nextDouble() * MediaQuery.of(context).size.height;
+    final left = random.nextDouble() * MediaQuery.of(context).size.width;
+    final opacity = random.nextDouble() * 0.1 + 0.05;
+    
+    return Positioned(
+      top: top + (_controller.value * 50 * (index.isEven ? 1 : -1)),
+      left: left + (_controller.value * 30 * (index.isOdd ? 1 : -1)),
+      child: Opacity(
+        opacity: opacity,
+        child: Icon(
+          index.isEven ? Icons.favorite : Icons.health_and_safety,
+          size: size,
+          color: Colors.white,
+        ),
+      ),
     );
   }
 }
@@ -227,55 +253,60 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Health Dashboard"), actions: [
-        IconButton(icon: const Icon(Icons.person), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())))
-      ]),
+      appBar: AppBar(
+        title: const Text("Health Dashboard", style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.account_circle_outlined, size: 28), 
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage()))
+          )
+        ],
+      ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(children: [
           Expanded(flex: 6, child: GridView.count(
-            crossAxisCount: 2, crossAxisSpacing: 15, mainAxisSpacing: 15,
+            crossAxisCount: 2, crossAxisSpacing: 20, mainAxisSpacing: 20,
             children: [
-              _menuItem(context, "eGFR Calc", "assets/egfr.jpg", const EGFRPage()),
-              _menuItem(context, "BMI Index", "assets/bmi_index.jpg", const BMIPage()),
-              _menuItem(context, "Blood Pressure", "assets/blood_pressure.jpg", const BPPage()),
-              _menuItem(context, "Blood Glucose", "assets/blood_glucose.jpg", const GlucosePage()),
+              _menuItem(context, "eGFR Calc", Icons.analytics_outlined, const EGFRPage()),
+              _menuItem(context, "BMI Index", Icons.monitor_weight_outlined, const BMIPage()),
+              _menuItem(context, "Blood Pressure", Icons.bloodtype_outlined, const BPPage()),
+              _menuItem(context, "Blood Glucose", Icons.biotech_outlined, const GlucosePage()),
+              _menuItem(context, "Cholesterol", Icons.science_outlined, const CholesterolPage()),
             ],
           )),
+          const SizedBox(height: 20),
           ElevatedButton.icon(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoryPage())),
-            icon: const Icon(Icons.history, color: Colors.white),
-            label: const Text("History, Trends & PDF", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.history_rounded),
+            label: const Text("History, Trends & PDF", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
-                minimumSize: const Size(double.infinity, 60),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+                minimumSize: const Size(double.infinity, 65),
+                elevation: 4,
             ),
           ),
-          const SizedBox(height: 80),
+          const SizedBox(height: 40),
         ]),
       ),
     );
   }
 
-  Widget _menuItem(BuildContext context, String title, String path, Widget page) => InkWell(
+  Widget _menuItem(BuildContext context, String title, IconData icon, Widget page) => InkWell(
     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => page)),
-    child: Card(
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Column(children: [
-        Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Image.asset(
-                  path,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  errorBuilder: (c,e,s) => const Icon(Icons.image_not_supported, size: 40)
-              ),
-            )
+    child: Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: Colors.teal.withValues(alpha: 0.1), shape: BoxShape.circle),
+          child: Icon(icon, color: Colors.teal, size: 32),
         ),
-        Padding(padding: const EdgeInsets.all(8), child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold))),
+        const SizedBox(height: 15),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
       ]),
     ),
   );
@@ -289,12 +320,17 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final aCtrl = TextEditingController(); String sex = "Male";
   @override void initState() { super.initState(); DatabaseHelper.instance.getProfile().then((p) => setState(() { aCtrl.text = p['age'] == 0 ? "" : p['age'].toString(); sex = p['sex']; })); }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Profile")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-    TextField(controller: aCtrl, decoration: const InputDecoration(labelText: "Age", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    const SizedBox(height: 15),
-    DropdownButtonFormField<String>(initialValue: sex, decoration: const InputDecoration(border: OutlineInputBorder()), items: ["Male", "Female"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), onChanged: (v) => setState(() => sex = v!)),
-    const SizedBox(height: 30),
-    ElevatedButton(onPressed: () async { await DatabaseHelper.instance.updateProfile(int.tryParse(aCtrl.text) ?? 0, sex); if(mounted) Navigator.pop(context); }, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Save Profile")),
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Profile")), body: Padding(padding: const EdgeInsets.all(25), child: Column(children: [
+    TextField(controller: aCtrl, decoration: const InputDecoration(labelText: "Age", prefixIcon: Icon(Icons.calendar_today))),
+    const SizedBox(height: 20),
+    DropdownButtonFormField<String>(
+      initialValue: sex, 
+      decoration: const InputDecoration(labelText: "Sex", prefixIcon: Icon(Icons.person_outline)), 
+      items: ["Male", "Female"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(), 
+      onChanged: (v) => setState(() => sex = v!)
+    ),
+    const SizedBox(height: 40),
+    ElevatedButton(onPressed: () async { await DatabaseHelper.instance.updateProfile(int.tryParse(aCtrl.text) ?? 0, sex); if(mounted) Navigator.pop(context); }, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55)), child: const Text("Save Profile")),
   ])));
 }
 
@@ -314,23 +350,26 @@ class _EGFRPageState extends State<EGFRPage> {
       setState(() { res = val.toStringAsFixed(1); stat = val >= 60 ? "Normal/Mild" : "Kidney Damage Analysis Required"; });
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("eGFR")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-    TextField(controller: cCtrl, decoration: const InputDecoration(labelText: "Creatinine (mg/dL)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("eGFR Calculator")), body: SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [
+    TextField(controller: cCtrl, decoration: const InputDecoration(labelText: "Creatinine (mg/dL)", suffixText: "mg/dL"), keyboardType: TextInputType.number),
     const SizedBox(height: 15),
-    TextField(controller: aCtrl, decoration: const InputDecoration(labelText: "Age", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    const SizedBox(height: 20),
-    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Calculate")),
-    if (res.isNotEmpty) ...[
-      const SizedBox(height: 20),
-      Text(res, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
-      Text(stat),
-      const SizedBox(height: 10),
-      ElevatedButton(onPressed: () {
-        DatabaseHelper.instance.saveRecord("eGFR", res, stat);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("eGFR Record Saved!")));
-      }, child: const Text("Save Record"))
-    ]
+    TextField(controller: aCtrl, decoration: const InputDecoration(labelText: "Age"), keyboardType: TextInputType.number),
+    const SizedBox(height: 30),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55)), child: const Text("Calculate")),
+    if (res.isNotEmpty) _resultCard(res, stat, "eGFR")
   ])));
+
+  Widget _resultCard(String r, String s, String type) => Container(
+    margin: const EdgeInsets.only(top: 30),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+    child: Column(children: [
+      Text(r, style: const TextStyle(fontSize: 54, fontWeight: FontWeight.bold, color: Colors.teal)),
+      Text(s, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+      const SizedBox(height: 20),
+      ElevatedButton(onPressed: () { DatabaseHelper.instance.saveRecord(type, r, s); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record Saved!"))); }, child: const Text("Save Record"))
+    ]),
+  );
 }
 
 class BMIPage extends StatefulWidget { 
@@ -346,23 +385,26 @@ class _BMIPageState extends State<BMIPage> {
       setState(() { res = val.toStringAsFixed(1); stat = val < 25 ? "Normal" : val < 30 ? "Overweight" : "Obese"; });
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("BMI")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-    TextField(controller: hCtrl, decoration: const InputDecoration(labelText: "Height (cm)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("BMI Index")), body: SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [
+    TextField(controller: hCtrl, decoration: const InputDecoration(labelText: "Height (cm)", suffixText: "cm"), keyboardType: TextInputType.number),
     const SizedBox(height: 15),
-    TextField(controller: wCtrl, decoration: const InputDecoration(labelText: "Weight (kg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    const SizedBox(height: 20),
-    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Calculate")),
-    if (res.isNotEmpty) ...[
-      const SizedBox(height: 20),
-      Text(res, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
-      Text(stat),
-      const SizedBox(height: 10),
-      ElevatedButton(onPressed: () {
-        DatabaseHelper.instance.saveRecord("BMI", res, stat);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("BMI Record Saved!")));
-      }, child: const Text("Save Record"))
-    ]
+    TextField(controller: wCtrl, decoration: const InputDecoration(labelText: "Weight (kg)", suffixText: "kg"), keyboardType: TextInputType.number),
+    const SizedBox(height: 30),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55)), child: const Text("Calculate")),
+    if (res.isNotEmpty) _resultCard(res, stat, "BMI")
   ])));
+
+  Widget _resultCard(String r, String s, String type) => Container(
+    margin: const EdgeInsets.only(top: 30),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+    child: Column(children: [
+      Text(r, style: const TextStyle(fontSize: 54, fontWeight: FontWeight.bold, color: Colors.teal)),
+      Text(s, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+      const SizedBox(height: 20),
+      ElevatedButton(onPressed: () { DatabaseHelper.instance.saveRecord(type, r, s); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record Saved!"))); }, child: const Text("Save Record"))
+    ]),
+  );
 }
 
 class BPPage extends StatefulWidget { 
@@ -376,7 +418,9 @@ class _BPPageState extends State<BPPage> {
     if (s > 0 && d > 0) {
       setState(() {
         res = "$s/$d";
-        if (s > 180 || d > 120) {
+        if (s < 100 && d < 60) {
+          stat = "Low";
+        } else if (s > 180 || d > 120) {
           stat = "Hypertensive Crisis";
         } else if (s >= 140 || d >= 90) {
           stat = "Stage 2 Hypertension";
@@ -392,23 +436,26 @@ class _BPPageState extends State<BPPage> {
       });
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Blood Pressure")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-    TextField(controller: sCtrl, decoration: const InputDecoration(labelText: "Systolic (mmHg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Blood Pressure")), body: SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [
+    TextField(controller: sCtrl, decoration: const InputDecoration(labelText: "Systolic (mmHg)", suffixText: "mmHg"), keyboardType: TextInputType.number),
     const SizedBox(height: 15),
-    TextField(controller: dCtrl, decoration: const InputDecoration(labelText: "Diastolic (mmHg)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    const SizedBox(height: 20),
-    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Analyze")),
-    if (res.isNotEmpty) ...[
-      const SizedBox(height: 20),
-      Text(res, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
-      Text(stat),
-      const SizedBox(height: 10),
-      ElevatedButton(onPressed: () {
-        DatabaseHelper.instance.saveRecord("BP", res, stat);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Blood Pressure Saved!")));
-      }, child: const Text("Save Record"))
-    ]
+    TextField(controller: dCtrl, decoration: const InputDecoration(labelText: "Diastolic (mmHg)", suffixText: "mmHg"), keyboardType: TextInputType.number),
+    const SizedBox(height: 30),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55)), child: const Text("Analyze")),
+    if (res.isNotEmpty) _resultCard(res, stat, "BP")
   ])));
+
+  Widget _resultCard(String r, String s, String type) => Container(
+    margin: const EdgeInsets.only(top: 30),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+    child: Column(children: [
+      Text(r, style: const TextStyle(fontSize: 54, fontWeight: FontWeight.bold, color: Colors.teal)),
+      Text(s, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+      const SizedBox(height: 20),
+      ElevatedButton(onPressed: () { DatabaseHelper.instance.saveRecord(type, r, s); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record Saved!"))); }, child: const Text("Save Record"))
+    ]),
+  );
 }
 
 class GlucosePage extends StatefulWidget { 
@@ -426,34 +473,89 @@ class _GlucosePageState extends State<GlucosePage> {
       setState(() {
         res = v.toStringAsFixed(0);
         if (isFasting) {
-          stat = (v < 100) ? "Normal (Fasting)" : (v < 126) ? "Prediabetes" : "Diabetes Risk";
+          if (v < 60) { stat = "Low (Fasting)"; }
+          else { stat = (v < 100) ? "Normal (Fasting)" : (v < 126) ? "Prediabetes" : "Diabetes Risk"; }
         } else {
-          stat = (v < 140) ? "Normal (Random)" : "High Glucose";
+          if (v < 80) { stat = "Low (Random)"; }
+          else { stat = (v < 140) ? "Normal (Random)" : "High Glucose"; }
         }
       });
     }
   }
-  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Blood Glucose")), body: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Blood Glucose")), body: SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [
     SwitchListTile(
       title: Text(isFasting ? "Fasting" : "Random / After Meal"),
       value: isFasting,
       onChanged: (val) => setState(() => isFasting = val),
       activeThumbColor: Colors.teal,
     ),
-    TextField(controller: gCtrl, decoration: const InputDecoration(labelText: "Glucose Level (mg/dL)", border: OutlineInputBorder()), keyboardType: TextInputType.number),
-    const SizedBox(height: 20),
-    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)), child: const Text("Analyze")),
-    if (res.isNotEmpty) ...[
-      const SizedBox(height: 20),
-      Text(res, style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.teal)),
-      Text(stat),
-      const SizedBox(height: 10),
-      ElevatedButton(onPressed: () {
-        DatabaseHelper.instance.saveRecord("Glucose", res, stat);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Glucose Record Saved!")));
-      }, child: const Text("Save Record"))
-    ]
+    const SizedBox(height: 10),
+    TextField(controller: gCtrl, decoration: const InputDecoration(labelText: "Glucose Level (mg/dL)", suffixText: "mg/dL"), keyboardType: TextInputType.number),
+    const SizedBox(height: 30),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55)), child: const Text("Analyze")),
+    if (res.isNotEmpty) _resultCard(res, stat, "Glucose")
   ])));
+
+  Widget _resultCard(String r, String s, String type) => Container(
+    margin: const EdgeInsets.only(top: 30),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+    child: Column(children: [
+      Text(r, style: const TextStyle(fontSize: 54, fontWeight: FontWeight.bold, color: Colors.teal)),
+      Text(s, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.grey)),
+      const SizedBox(height: 20),
+      ElevatedButton(onPressed: () { DatabaseHelper.instance.saveRecord(type, r, s); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record Saved!"))); }, child: const Text("Save Record"))
+    ]),
+  );
+}
+
+class CholesterolPage extends StatefulWidget {
+  const CholesterolPage({super.key});
+  @override State<CholesterolPage> createState() => _CholesterolPageState();
+}
+class _CholesterolPageState extends State<CholesterolPage> {
+  final tcCtrl = TextEditingController(), ldlCtrl = TextEditingController(), hdlCtrl = TextEditingController(), tgCtrl = TextEditingController();
+  String res = "", stat = "";
+
+  void calc() {
+    double tc = double.tryParse(tcCtrl.text) ?? 0, ldl = double.tryParse(ldlCtrl.text) ?? 0, hdl = double.tryParse(hdlCtrl.text) ?? 0, tg = double.tryParse(tgCtrl.text) ?? 0;
+    if (tc > 0) {
+      setState(() {
+        res = "TC: ${tc.toInt()}";
+        List<String> stats = [];
+        if (tc >= 200) stats.add("High Total Cholesterol");
+        if (ldl >= 130) stats.add("High LDL");
+        if (hdl < 40) stats.add("Low HDL");
+        if (tg >= 150) stats.add("High Triglycerides");
+        stat = stats.isEmpty ? "Normal Lipid Profile" : stats.join(", ");
+      });
+    }
+  }
+
+  @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text("Cholesterol")), body: SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [
+    TextField(controller: tcCtrl, decoration: const InputDecoration(labelText: "Total Cholesterol (mg/dL)"), keyboardType: TextInputType.number),
+    const SizedBox(height: 10),
+    TextField(controller: ldlCtrl, decoration: const InputDecoration(labelText: "LDL (Bad) (mg/dL)"), keyboardType: TextInputType.number),
+    const SizedBox(height: 10),
+    TextField(controller: hdlCtrl, decoration: const InputDecoration(labelText: "HDL (Good) (mg/dL)"), keyboardType: TextInputType.number),
+    const SizedBox(height: 10),
+    TextField(controller: tgCtrl, decoration: const InputDecoration(labelText: "Triglycerides (mg/dL)"), keyboardType: TextInputType.number),
+    const SizedBox(height: 30),
+    ElevatedButton(onPressed: calc, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 55)), child: const Text("Analyze")),
+    if (res.isNotEmpty) _resultCard(res, stat, "Cholesterol")
+  ])));
+
+  Widget _resultCard(String r, String s, String type) => Container(
+    margin: const EdgeInsets.only(top: 30),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+    child: Column(children: [
+      Text(r, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.teal)),
+      Text(s, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+      const SizedBox(height: 20),
+      ElevatedButton(onPressed: () { DatabaseHelper.instance.saveRecord(type, r, s); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Record Saved!"))); }, child: const Text("Save Record"))
+    ]),
+  );
 }
 
 // --- HISTORY & TRENDS ---
@@ -466,14 +568,34 @@ class HistoryPage extends StatelessWidget {
       final data = snap.data!;
       if (data.isEmpty) return const Center(child: Text("No records found."));
       return Column(children: [
-        Padding(padding: const EdgeInsets.all(10), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: ["BMI", "BP", "Glucose", "eGFR"].map((t) => Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: ElevatedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChartPage(type: t, data: data))), child: Text(t)))).toList()))),
+        Padding(padding: const EdgeInsets.all(15), child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: ["BMI", "BP", "Glucose", "eGFR", "Cholesterol"].map((t) => Padding(padding: EdgeInsets.symmetric(horizontal: 5), child: ActionChip(label: Text(t), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChartPage(type: t, data: data)))) )).toList()))),
         Expanded(child: ListView.builder(itemCount: data.length, itemBuilder: (c, i) {
           final item = data[data.length - 1 - i];
-          return ListTile(title: Text("${item['type']}: ${item['val']}"), subtitle: Text("${item['status']}\n${item['date']} at ${item['timestamp']}"));
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            child: ListTile(
+              leading: CircleAvatar(backgroundColor: Colors.teal.withValues(alpha: 0.1), child: Icon(_getIcon(item['type']), color: Colors.teal, size: 20)),
+              title: Text("${item['type']}: ${item['val']}", style: const TextStyle(fontWeight: FontWeight.bold)), 
+              subtitle: Text("${item['status']}\n${item['date']} at ${item['timestamp']}"),
+              isThreeLine: true,
+            ),
+          );
         })),
       ]);
     }),
   );
+
+  IconData _getIcon(String type) {
+    switch(type) {
+      case "BMI": return Icons.monitor_weight_outlined;
+      case "BP": return Icons.bloodtype_outlined;
+      case "Glucose": return Icons.biotech_outlined;
+      case "Cholesterol": return Icons.science_outlined;
+      default: return Icons.analytics_outlined;
+    }
+  }
+
   void _pdf(List<Map<String, dynamic>> data) async {
     final doc = pw.Document(); 
     doc.addPage(pw.Page(build: (c) => pw.TableHelper.fromTextArray(data: [['Date', 'Time', 'Type', 'Value', 'Status'], ...data.map((e) => [e['date'], e['timestamp'] ?? '', e['type'], e['val'], e['status']])])));
@@ -496,137 +618,147 @@ class _ChartPageState extends State<ChartPage> {
 
   @override
   Widget build(BuildContext context) {
-    List<Map<String, dynamic>> filtered = widget.data.where((e) => e['type'] == widget.type).toList();
-    
-    if (widget.type == "Glucose") {
-      filtered = filtered.where((e) => (e['status'] as String).contains(isGlucoseFasting ? "Fasting" : "Random")).toList();
-    }
-
-    if (filtered.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: Text("${widget.type} Trend")),
-        body: Column(
-          children: [
-            if (widget.type == "Glucose") _glucoseToggle(),
-            const Expanded(child: Center(child: Text("Not enough data"))),
-          ],
-        ),
-      );
-    }
-
-    List<FlSpot> mainSpots = [];
-    List<FlSpot> secondarySpots = [];
-
-    for (int i = 0; i < filtered.length; i++) {
-      if (widget.type == "BP") {
-        final parts = filtered[i]['val'].split('/');
-        mainSpots.add(FlSpot(i.toDouble(), double.tryParse(parts[0]) ?? 0));
-        if (parts.length > 1) {
-          secondarySpots.add(FlSpot(i.toDouble(), double.tryParse(parts[1]) ?? 0));
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: DatabaseHelper.instance.fetchRecords(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        
+        final freshData = snapshot.data!;
+        List<Map<String, dynamic>> filtered = freshData.where((e) => e['type'] == widget.type).toList();
+        
+        if (widget.type == "Glucose") {
+          filtered = filtered.where((e) => (e['status'] as String).contains(isGlucoseFasting ? "Fasting" : "Random")).toList();
         }
-      } else {
-        mainSpots.add(FlSpot(i.toDouble(), double.tryParse(filtered[i]['val']) ?? 0));
-      }
-    }
 
-    return Scaffold(
-      appBar: AppBar(title: Text("${widget.type} Trend"), backgroundColor: Colors.white, foregroundColor: Colors.black87),
-      backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        if (filtered.isEmpty) {
+          return Scaffold(
+            appBar: AppBar(title: Text("${widget.type} Trend")),
+            body: Column(
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Detailed statistics", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800])),
-                    const Text("Last entries analysis", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
                 if (widget.type == "Glucose") _glucoseToggle(),
+                const Expanded(child: Center(child: Text("Not enough data"))),
               ],
             ),
-            const SizedBox(height: 20),
-            // Persistent Info Card
-            if (touchedIndex != null && touchedIndex! < filtered.length) _buildInfoCard(filtered[touchedIndex!]),
-            const SizedBox(height: 20),
-            Expanded(
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: true,
-                    horizontalInterval: 40,
-                    verticalInterval: 1,
-                    getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
-                    getDrawingVerticalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
-                  ),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 30,
-                        getTitlesWidget: (value, meta) {
-                          int idx = value.toInt();
-                          if (idx >= 0 && idx < filtered.length) {
-                            String date = filtered[idx]['date'];
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(date.substring(5), style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                            );
+          );
+        }
+
+        List<FlSpot> mainSpots = [];
+        List<FlSpot> secondarySpots = [];
+
+        for (int i = 0; i < filtered.length; i++) {
+          if (widget.type == "BP") {
+            final parts = filtered[i]['val'].split('/');
+            mainSpots.add(FlSpot(i.toDouble(), double.tryParse(parts[0]) ?? 0));
+            if (parts.length > 1) {
+              secondarySpots.add(FlSpot(i.toDouble(), double.tryParse(parts[1]) ?? 0));
+            }
+          } else if (widget.type == "Cholesterol") {
+            final val = double.tryParse(filtered[i]['val'].replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0;
+            mainSpots.add(FlSpot(i.toDouble(), val));
+          } else {
+            mainSpots.add(FlSpot(i.toDouble(), double.tryParse(filtered[i]['val']) ?? 0));
+          }
+        }
+
+        return Scaffold(
+          appBar: AppBar(title: Text("${widget.type} Trend"), backgroundColor: Colors.white, foregroundColor: Colors.black87),
+          backgroundColor: Colors.white,
+          body: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Detailed statistics", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+                        const Text("Last entries analysis", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                    if (widget.type == "Glucose") _glucoseToggle(),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (touchedIndex != null && touchedIndex! < filtered.length) _buildInfoCard(filtered[touchedIndex!]),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: LineChart(
+                    LineChartData(
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: true,
+                        horizontalInterval: 40,
+                        verticalInterval: 1,
+                        getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
+                        getDrawingVerticalLine: (value) => FlLine(color: Colors.grey[100]!, strokeWidth: 1),
+                      ),
+                      titlesData: FlTitlesData(
+                        show: true,
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 30,
+                            getTitlesWidget: (value, meta) {
+                              int idx = value.toInt();
+                              if (idx >= 0 && idx < filtered.length) {
+                                String date = filtered[idx]['date'];
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(date.substring(5), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                );
+                              }
+                              return const Text("");
+                            },
+                          ),
+                        ),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      lineBarsData: [
+                        _createLineBarData(mainSpots, const Color(0xFF673AB7), const Color(0xFFE91E63)),
+                        if (secondarySpots.isNotEmpty)
+                          _createLineBarData(secondarySpots, Colors.orange, Colors.yellow),
+                      ],
+                      lineTouchData: LineTouchData(
+                        touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
+                          if (!event.isInterestedForInteractions || touchResponse == null || touchResponse.lineBarSpots == null) {
+                            return;
                           }
-                          return const Text("");
+                          setState(() {
+                            touchedIndex = touchResponse.lineBarSpots!.first.spotIndex;
+                          });
                         },
+                        handleBuiltInTouches: true,
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipColor: (touchedSpot) => Colors.transparent,
+                          getTooltipItems: (List<LineBarSpot> touchedBarSpots) => touchedBarSpots.map((barSpot) => null).toList(),
+                        ),
                       ),
                     ),
                   ),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    _createLineBarData(mainSpots, const Color(0xFF673AB7), const Color(0xFFE91E63)),
-                    if (secondarySpots.isNotEmpty)
-                      _createLineBarData(secondarySpots, Colors.orange, Colors.yellow),
-                  ],
-                  lineTouchData: LineTouchData(
-                    touchCallback: (FlTouchEvent event, LineTouchResponse? touchResponse) {
-                      if (!event.isInterestedForInteractions || touchResponse == null || touchResponse.lineBarSpots == null) {
-                        return;
-                      }
-                      setState(() {
-                        touchedIndex = touchResponse.lineBarSpots!.first.spotIndex;
-                      });
-                    },
-                    handleBuiltInTouches: true,
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (touchedSpot) => Colors.transparent, // Disable standard tooltip
-                      getTooltipItems: (List<LineBarSpot> touchedBarSpots) => touchedBarSpots.map((barSpot) => null).toList(),
-                    ),
-                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _indicator(widget.type == "BP" ? "Systolic" : widget.type, const Color(0xFF673AB7)),
-                if (widget.type == "BP") ...[
-                  const SizedBox(width: 20),
-                  _indicator("Diastolic", Colors.orange),
-                ]
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _indicator(widget.type == "BP" ? "Systolic" : (widget.type == "Cholesterol" ? "Total Chol." : widget.type), const Color(0xFF673AB7)),
+                    if (widget.type == "BP") ...[
+                      const SizedBox(width: 20),
+                      _indicator("Diastolic", Colors.orange),
+                    ]
+                  ],
+                ),
+                const SizedBox(height: 40),
               ],
             ),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
+          ),
+        );
+      }
     );
   }
 
